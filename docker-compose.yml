@@ -1,0 +1,55 @@
+version: "3"
+services:
+  db:
+    container_name: mysql
+    image: mysql:8.1
+    restart: always
+    volumes: 
+      - ./mysql:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=2020011869
+      - MYSQL_DATABASE=gout
+      - TZ=Asia/Shanghai
+    command: ['mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci']
+    expose: 
+      - "3306"
+    networks:
+      - db_network
+  
+  app:
+    container_name: app
+    build: .
+    depends_on:
+      - db
+    restart: always
+    volumes:
+      - ./Django:/code
+    command: >
+      bash -c
+      "python manage.py migrate &&
+      gunicorn -w4 -b 0.0.0.0:8000 --log-level=debug app.wsgi"
+    expose:
+      - "8000"
+    networks:
+      - web_network
+      - db_network
+  
+  nginx:
+    container_name: nginx
+    image: nginx:latest
+    depends_on:
+      - app
+    restart: always
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+    ports:
+      - "8000:8000"
+    networks:
+      - web_network
+
+
+networks:
+  db_network:
+    driver: bridge
+  web_network:
+    driver: bridge

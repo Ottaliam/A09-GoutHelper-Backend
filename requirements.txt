@@ -1,3 +1,5 @@
 Django==4.2.7
+PyJWT==2.8.0
+scrypt==0.8.20
 mysqlclient==2.1.1
 gunicorn==21.2.0

@@ -23,11 +23,11 @@ services:
       - db
     restart: always
     volumes:
-      - ./Django:/code
+      - ./Django:/code/Django
     command: >
-      bash -c
-      "python manage.py migrate &&
-      gunicorn -w4 -b 0.0.0.0:8000 --log-level=debug app.wsgi"
+      bash -c "while true; do sleep 30; done"
+#      "python manage.py migrate &&
+#      gunicorn -w4 -b 0.0.0.0:8000 --log-level=debug app.wsgi"
     expose:
       - "8000"
     networks:

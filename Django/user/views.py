@@ -1,13 +1,15 @@
 import requests
-import jwt
-import datetime
+import logging
+import json
 
 from django.http import JsonResponse
 from .models import User
 
 def login(request):
     if request.method == 'POST':
-        code = request.POST.get('code', None)
+        data = json.loads(request.body)
+        code = data.get('code', None)
+        
         if code:
             appid = 'wxf748ebc5e8814741'
             secret = '6332b3b4d1f1151b8c9a094b5484d251'
@@ -26,10 +28,10 @@ def login(request):
 
                     return JsonResponse({'status': 'success', 'openid': openid})
                 else:
-                    return JsonResponse({'status': 'error', 'message': '无法获取 openid 和 session_key'})
+                    return JsonResponse({'status': 'error', 'message': 'Fail to obtain openid and session_key'})
             else:
-                return JsonResponse({'status': 'error', 'message': '微信服务请求失败'})
+                return JsonResponse({'status': 'error', 'message': 'Fail at WeChat API'})
         else:
-            return JsonResponse({'status': 'error', 'message': '未提供有效的code'})
+            return JsonResponse({'status': 'error', 'message': 'Invalid Code'})
     else:
-        return JsonResponse({'status': 'error', 'message': '无效的请求方法'})
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})

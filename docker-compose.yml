@@ -24,6 +24,7 @@ services:
     restart: always
     volumes:
       - ./Django:/code
+      - ./static:/static
     command: >
       bash -c
       "python manage.py migrate &&

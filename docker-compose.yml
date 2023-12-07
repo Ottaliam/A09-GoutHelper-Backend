@@ -24,7 +24,6 @@ services:
     restart: always
     volumes:
       - ./Django:/code
-      - ./static:/static
     command: >
       bash -c
       "python manage.py migrate &&
@@ -43,6 +42,7 @@ services:
     restart: always
     volumes:
       - ./nginx:/etc/nginx/conf.d
+      - ./static:/static
     ports:
       - "8000:8000"
     networks:

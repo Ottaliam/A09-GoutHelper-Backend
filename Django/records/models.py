@@ -1,6 +1,7 @@
 from django.db import models
 
 from user.models import User
+from food.models import Food
 
 class AbstractRecordBase(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -10,10 +11,19 @@ class AbstractRecordBase(models.Model):
         abstract = True
 
 class FoodRecord(AbstractRecordBase):
-    pass
+    food = models.ForeignKey(Food, on_delete=models.CASCADE)
+    quantity = models.FloatField()
 
 class UricacidRecord(AbstractRecordBase):
-    pass
+    quantity = models.FloatField()
 
 class FlareupRecord(AbstractRecordBase):
-    pass
+    symptom = models.CharField(max_length=500)
+    intense_level = models.IntegerField(choices=(
+        (1, 'Very Poor'),
+        (2, 'Poor'),
+        (3, 'Average'),
+        (4, 'Good'),
+        (5, 'Excellent'),
+    ))
+    trigger = models.CharField(max_length=500)

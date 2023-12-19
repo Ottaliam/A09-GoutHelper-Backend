@@ -1,10 +1,14 @@
 import json
+import datetime
 
 from django.http import JsonResponse
+from django.utils.dateparse import parse_date
 
 from user.models import User
 from food.models import Food
 from .models import FoodRecord, UricacidRecord, FlareupRecord
+
+# ----------------------------------------- Food Record -----------------------------------------
 
 def addFoodRecord(request):
     if request.method == 'POST':
@@ -26,6 +30,48 @@ def addFoodRecord(request):
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
+
+def getFoodRecordsForDate(request):
+    if request.method == 'POST':
+        openid = request.POST.get('openid')
+        date_str = request.POST.get('date')  # expecting date in 'YYYY-MM-DD' format
+
+        try:
+            date = parse_date(date_str)
+            if not date:
+                raise ValueError("Invalid date format")
+
+            start_of_day = datetime.datetime.combine(date, datetime.time.min)
+            end_of_day = datetime.datetime.combine(date, datetime.time.max)
+
+            user = User.objects.get(openid=openid)
+
+            food_records = FoodRecord.objects.filter(
+                user=user,
+                created_at__range=(start_of_day, end_of_day)
+            ).order_by('created_at')
+
+            results = [
+                {
+                    'food_name': record.food.name,
+                    'quantity': record.quantity,
+                    'purine_content': record.quantity * record.food.purine_per_unit,
+                    'created_at': record.created_at
+                }
+                for record in food_records
+            ]
+
+            return JsonResponse({'status': 'success', 'records': results})
+        except User.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'User not found'})
+        except ValueError as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+# ----------------------------------------- Uric Acid Record -----------------------------------------
+
 def addUricacidRecord(request):
     if request.method == 'POST':
         openid = request.POST.get('openid')
@@ -42,6 +88,8 @@ def addUricacidRecord(request):
             return JsonResponse({'status': 'error', 'message': 'User not found'})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+# ----------------------------------------- Flareup Record -----------------------------------------
 
 def addFlareupRecord(request):
     if request.method == 'POST':

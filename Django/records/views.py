@@ -83,18 +83,22 @@ def addUricacidRecord(request):
         data = json.loads(request.body)
         openid = data.get('openid')
         quantity = data.get('quantity', 0)
+        record_date_str = data.get('record_date')
 
         try:
+            record_date = datetime.datetime.strptime(record_date_str, '%Y-%m-%d').date()
             user = User.objects.get(openid=openid)
             uricacid_record = UricacidRecord.objects.create(
                 user=user,
-                quantity=quantity
+                quantity=quantity,
+                record_date=record_date
             )
             return JsonResponse({'status': 'success', 'record_id': uricacid_record.id})
-        except User.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'User not found'})
+        except (User.DoesNotExist, ValueError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid data provided'})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
 
 # ----------------------------------------- Flareup Record -----------------------------------------
 
@@ -105,17 +109,20 @@ def addFlareupRecord(request):
         symptom = data.get('symptom')
         intense_level = data.get('intense_level')
         trigger = data.get('trigger')
+        record_date_str = data.get('record_date')
 
         try:
+            record_date = datetime.datetime.strptime(record_date_str, '%Y-%m-%d').date()
             user = User.objects.get(openid=openid)
             flareup_record = FlareupRecord.objects.create(
                 user=user,
                 symptom=symptom,
                 intense_level=intense_level,
-                trigger=trigger
+                trigger=trigger,
+                record_date=record_date
             )
             return JsonResponse({'status': 'success', 'record_id': flareup_record.id})
-        except User.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'User not found'})
+        except (User.DoesNotExist, ValueError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid data provided'})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})

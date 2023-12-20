@@ -16,18 +16,22 @@ def addFoodRecord(request):
         openid = data.get('openid')
         food_name = data.get('food_name')
         quantity = data.get('quantity', 0)
+        record_date_str = data.get('record_date')
 
         try:
+            record_date = datetime.datetime.strptime(record_date_str, '%Y-%m-%d').date()
+
             user = User.objects.get(openid=openid)
             food = Food.objects.get(name=food_name)
             food_record = FoodRecord.objects.create(
                 user=user,
                 food=food,
-                quantity=quantity
+                quantity=quantity,
+                record_date=record_date
             )
             return JsonResponse({'status': 'success', 'record_id': food_record.id})
-        except (User.DoesNotExist, Food.DoesNotExist):
-            return JsonResponse({'status': 'error', 'message': 'User or Food not found'})
+        except (User.DoesNotExist, Food.DoesNotExist, ValueError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid data provided'})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 

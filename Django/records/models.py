@@ -1,3 +1,5 @@
+import datetime
+
 from django.db import models
 
 from user.models import User
@@ -6,6 +8,7 @@ from food.models import Food
 class AbstractRecordBase(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    record_date = models.DateField(default=datetime.date.today)
 
     class Meta:
         abstract = True

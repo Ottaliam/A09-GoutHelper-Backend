@@ -12,9 +12,10 @@ from .models import FoodRecord, UricacidRecord, FlareupRecord
 
 def addFoodRecord(request):
     if request.method == 'POST':
-        openid = request.POST.get('openid')
-        food_name = request.POST.get('food_name')
-        quantity = request.POST.get('quantity', 0)
+        data = json.loads(request.body)
+        openid = data.get('openid')
+        food_name = data.get('food_name')
+        quantity = data.get('quantity', 0)
 
         try:
             user = User.objects.get(openid=openid)
@@ -33,8 +34,9 @@ def addFoodRecord(request):
 
 def getFoodRecordsForDate(request):
     if request.method == 'POST':
-        openid = request.POST.get('openid')
-        date_str = request.POST.get('date')  # expecting date in 'YYYY-MM-DD' format
+        data = json.loads(request.body)
+        openid = data.get('openid')
+        date_str = data.get('date')  # expecting date in 'YYYY-MM-DD' format
 
         try:
             date = parse_date(date_str)
@@ -74,8 +76,9 @@ def getFoodRecordsForDate(request):
 
 def addUricacidRecord(request):
     if request.method == 'POST':
-        openid = request.POST.get('openid')
-        quantity = request.POST.get('quantity', 0)
+        data = json.loads(request.body)
+        openid = data.get('openid')
+        quantity = data.get('quantity', 0)
 
         try:
             user = User.objects.get(openid=openid)
@@ -93,10 +96,11 @@ def addUricacidRecord(request):
 
 def addFlareupRecord(request):
     if request.method == 'POST':
-        openid = request.POST.get('openid')
-        symptom = request.POST.get('symptom')
-        intense_level = request.POST.get('intense_level')
-        trigger = request.POST.get('trigger')
+        data = json.loads(request.body)
+        openid = data.get('openid')
+        symptom = data.get('symptom')
+        intense_level = data.get('intense_level')
+        trigger = data.get('trigger')
 
         try:
             user = User.objects.get(openid=openid)

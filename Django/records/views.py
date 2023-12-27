@@ -16,39 +16,6 @@ from food.models import Food
 from .models import FoodRecord, UricacidRecord, FlareupRecord
 from django.conf import settings
 
-# ---------------------------------------- Utils ----------------------------------------------
-def generate_and_save_chart(data, title, temp_dir, date_format):
-    plt.figure()
-    dates = [date.strftime(date_format) for date in data.keys()]
-    plt.plot(dates, data.values())
-    plt.title(title)
-    plt.xlabel('Date')
-    plt.ylabel('Purine Intake')
-
-    temp_file = tempfile.NamedTemporaryFile(dir=temp_dir, suffix='.png', delete=False)
-    plt.savefig(temp_file.name)
-    plt.close()
-
-def generate_pie_chart(request):
-    if request.method == 'POST':
-        # 解析百分比
-        data = json.loads(request.body)
-        percentage = float(data.get('percentage'))
-
-        # 生成饼图
-        fig, ax = plt.subplots()
-        ax.pie([percentage, 100-percentage], colors=['red', 'blue'], startangle=90)
-
-        # 将图表转换为base64字符串
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
-        image_base64 = base64.b64encode(buf.read()).decode('utf-8')
-        buf.close()
-
-        return JsonResponse({'status': 'success', 'image': image_base64})
-    else:
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 # ----------------------------------------- Food Record -----------------------------------------
 

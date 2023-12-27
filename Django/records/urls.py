@@ -12,6 +12,4 @@ urlpatterns = [
     path("record/foodRecordSummary", views.getFoodRecordSummary, name="food_record_summary"),
     path("record/uricRecordSummary", views.getUricacidSummary, name="uricacid_record_summary"),
     path("record/flareRecordSummary", views.getFlareupSummary, name="flareup_record_summary"),
-
-    path("record/pieChart", views.generate_pie_chart, name="generate_pie_chart")
 ]

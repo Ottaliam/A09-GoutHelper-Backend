@@ -1,12 +1,15 @@
 import os
+import io
+import base64
 import json
 import datetime
+from datetime import timedelta
 import tempfile
 import matplotlib.pyplot as plt
-from collections import defaultdict
 
 from django.http import JsonResponse
 from django.utils.dateparse import parse_date
+from django.db.models import Sum, Avg, F, functions
 
 from user.models import User
 from food.models import Food
@@ -26,7 +29,26 @@ def generate_and_save_chart(data, title, temp_dir, date_format):
     plt.savefig(temp_file.name)
     plt.close()
 
-    return os.path.join(settings.MEDIA_URL, 'temp', os.path.basename(temp_file.name))
+def generate_pie_chart(request):
+    if request.method == 'POST':
+        # 解析百分比
+        data = json.loads(request.body)
+        percentage = float(data.get('percentage'))
+
+        # 生成饼图
+        fig, ax = plt.subplots()
+        ax.pie([percentage, 100-percentage], colors=['red', 'blue'], startangle=90)
+
+        # 将图表转换为base64字符串
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        image_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        buf.close()
+
+        return JsonResponse({'status': 'success', 'image': image_base64})
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 # ----------------------------------------- Food Record -----------------------------------------
 
@@ -55,50 +77,77 @@ def addFoodRecord(request):
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-def computeStatisticsAndChartsForFoodRecord(request):
+def getFoodRecordSummary(request):
     if request.method == 'POST':
         data = json.loads(request.body)
-        record_date = datetime.datetime.strptime(data.get('date'), '%Y-%m-%d').date()
-        temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
+        reference_date_str = data.get('reference_date')
+        reference_date = datetime.datetime.strptime(reference_date_str, '%Y-%m-%d').date()
+            
+        # Helper function to compute start dates
+        def start_date_for_period(days):
+            return reference_date - datetime.timedelta(days=days)
 
-        # Define time ranges based on given date
-        last_7_days = [record_date - datetime.timedelta(days=i) for i in range(7)]
-        last_month_end = record_date.replace(day=1) - datetime.timedelta(days=1)
-        last_month_start = last_month_end.replace(day=1)
-        last_month = [last_month_start + datetime.timedelta(days=i) for i in range((last_month_end - last_month_start).days + 1)]
-        last_year_start = record_date.replace(year=record_date.year-1, month=record_date.month+1, day=1)
-        last_year = [last_year_start + datetime.timedelta(days=i) for i in range((record_date - last_year_start).days + 1)]
+        # Helper function to fill in missing dates with 0
+        def fill_missing_dates(data, start_date, end_date, date_trunc):
+            filled_data = {}
+            current_date = start_date
+            while current_date <= end_date:
+                key = current_date.strftime('%Y-%m-%d') if date_trunc == 'day' else current_date.strftime('%Y-%m')
+                filled_data[key] = 0
+                current_date += datetime.timedelta(days=1 if date_trunc == 'day' else 30)
 
-        # Fetch records and compute statistics
-        statistics = {
-            'last_7_days': defaultdict(float), 'last_month': defaultdict(float), 'last_year': defaultdict(float)
+            for item in data:
+                key = item['period'].strftime('%Y-%m-%d') if date_trunc == 'day' else item['period'].strftime('%Y-%m')
+                filled_data[key] = item['total_purine']
+
+            return [{'period': key, 'total_purine': value} for key, value in filled_data.items()]
+
+        # Get the starting dates for each period
+        last_week_start = start_date_for_period(7)
+        last_month_start = start_date_for_period(30)
+        last_year_start = start_date_for_period(365)
+
+        # Helper function to annotate and aggregate query
+        def aggregate_purine(queryset, date_trunc='day'):
+            if date_trunc == 'day':
+                trunc_date = functions.TruncDay('record_date')
+            elif date_trunc == 'month':
+                trunc_date = functions.TruncMonth('record_date')
+
+            return queryset.annotate(
+                period=trunc_date
+            ).values('period').annotate(
+                total_purine=Sum(F('quantity') * F('food__purine_per_unit'))
+            ).order_by('period')
+
+        # Query for each time period
+        last_week_data = FoodRecord.objects.filter(
+            record_date__range=[last_week_start, reference_date]
+        )
+        last_month_data = FoodRecord.objects.filter(
+            record_date__range=[last_month_start, reference_date]
+        )
+        last_year_data = FoodRecord.objects.filter(
+            record_date__range=[last_year_start, reference_date]
+        )
+
+        # Aggregate data
+        weekly_purine = aggregate_purine(last_week_data, 'day')
+        monthly_purine = aggregate_purine(last_month_data, 'day')
+        yearly_purine = aggregate_purine(last_year_data, 'month')
+
+        # Fill in missing dates
+        filled_weekly_purine = fill_missing_dates(weekly_purine, last_week_start, reference_date, 'day')
+        filled_monthly_purine = fill_missing_dates(monthly_purine, last_month_start, reference_date, 'day')
+        filled_yearly_purine = fill_missing_dates(yearly_purine, last_year_start, reference_date, 'month')
+
+        summary = {
+            'last_week': filled_weekly_purine,
+            'last_month': filled_monthly_purine,
+            'last_year': filled_yearly_purine
         }
 
-        for date in last_7_days:
-            records = FoodRecord.objects.filter(record_date=date)
-            statistics['last_7_days'][date] += sum([r.quantity * r.food.purine_per_unit for r in records])
-
-        for date in last_month:
-            records = FoodRecord.objects.filter(record_date=date)
-            statistics['last_month'][date] += sum([r.quantity * r.food.purine_per_unit for r in records])
-
-        for month in range(1, 13):
-            month_start = record_date.replace(month=month, day=1)
-            month_end = (month_start + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1)
-            records = FoodRecord.objects.filter(record_date__range=[month_start, month_end])
-            month_key = month_start.strftime('%Y-%m')
-            statistics['last_year'][month_key] += sum([r.quantity * r.food.purine_per_unit for r in records])
-
-        # Generate and save charts
-        charts = {
-            'last_7_days_chart': generate_and_save_chart(statistics['last_7_days'], 'Purine Intake: Last 7 Days', temp_dir, '%m-%d'),
-            'last_month_chart': generate_and_save_chart(statistics['last_month'], 'Purine Intake: Last Month', temp_dir, '%m-%d'),
-            'last_year_chart': generate_and_save_chart(statistics['last_year'], 'Purine Intake: Last Year', temp_dir, '%Y-%m')
-        }
-
-        return JsonResponse({'status': 'success', 'charts': charts})
+        return JsonResponse({'status': 'success', 'summary': summary})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
@@ -113,19 +162,18 @@ def getFoodRecordsForDate(request):
             if not date:
                 raise ValueError("Invalid date format")
 
-            start_of_day = datetime.datetime.combine(date, datetime.time.min)
-            end_of_day = datetime.datetime.combine(date, datetime.time.max)
-
             user = User.objects.get(openid=openid)
 
             food_records = FoodRecord.objects.filter(
                 user=user,
-                created_at__range=(start_of_day, end_of_day)
+                record_date=date
             ).order_by('created_at')
 
             results = [
                 {
                     'food_name': record.food.name,
+                    'ms_unit': record.food.ms_unit,
+                    'image_url': record.food.image.url if record.food.image else None,
                     'quantity': record.quantity,
                     'purine_content': record.quantity * record.food.purine_per_unit,
                     'created_at': record.created_at
@@ -165,6 +213,75 @@ def addUricacidRecord(request):
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
+def getUricacidSummary(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        reference_date_str = data.get('reference_date')
+        reference_date = datetime.datetime.strptime(reference_date_str, '%Y-%m-%d').date()
+    
+        # Helper function to compute start dates
+        def start_date_for_period(days):
+            return reference_date - datetime.timedelta(days=days)
+
+        # Helper function to fill in missing dates with 0
+        def fill_missing_dates(data, start_date, end_date, date_trunc):
+            filled_data = {}
+            current_date = start_date
+            while current_date <= end_date:
+                key = current_date.strftime('%Y-%m-%d') if date_trunc == 'day' else current_date.strftime('%Y-%m')
+                filled_data[key] = 0
+                current_date += datetime.timedelta(days=1 if date_trunc == 'day' else 30)
+
+            for item in data:
+                key = item['period'].strftime('%Y-%m-%d') if date_trunc == 'day' else item['period'].strftime('%Y-%m')
+                filled_data[key] = item['average_quantity']
+
+            return [{'period': key, 'average_quantity': value} for key, value in filled_data.items()]
+
+        # Get the starting dates for each period
+        last_week_start = start_date_for_period(7)
+        last_month_start = start_date_for_period(30)
+        last_year_start = start_date_for_period(365)
+
+        # Aggregate average
+        def aggregate_uricacid(queryset, date_trunc='day'):
+            if date_trunc == 'day':
+                trunc_date = functions.TruncDay('record_date')
+            elif date_trunc == 'month':
+                trunc_date = functions.TruncMonth('record_date')
+
+            return queryset.annotate(
+                period=trunc_date
+            ).values('period').annotate(
+                average_quantity=Avg('quantity')
+            ).order_by('period')
+
+        # Queries
+        last_week_data = UricacidRecord.objects.filter(
+            record_date__range=[last_week_start, reference_date]
+        )
+        last_month_data = UricacidRecord.objects.filter(
+            record_date__range=[last_month_start, reference_date]
+        )
+        last_year_data = UricacidRecord.objects.filter(
+            record_date__range=[last_year_start, reference_date]
+        )
+
+        # Aggregate data and fill missing dates
+        weekly_avg = fill_missing_dates(aggregate_uricacid(last_week_data, 'day'), last_week_start, reference_date, 'day')
+        monthly_avg = fill_missing_dates(aggregate_uricacid(last_month_data, 'day'), last_month_start, reference_date, 'day')
+        yearly_avg = fill_missing_dates(aggregate_uricacid(last_year_data, 'month'), last_year_start, reference_date, 'month')
+
+        summary = {
+            'last_week': weekly_avg,
+            'last_month': monthly_avg,
+            'last_year': yearly_avg
+        }
+
+        return JsonResponse({'status': 'success', 'summary': summary})
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
 
 # ----------------------------------------- Flareup Record -----------------------------------------
 
@@ -190,5 +307,74 @@ def addFlareupRecord(request):
             return JsonResponse({'status': 'success', 'record_id': flareup_record.id})
         except (User.DoesNotExist, ValueError):
             return JsonResponse({'status': 'error', 'message': 'Invalid data provided'})
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+def getFlareupSummary(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        reference_date_str = data.get('reference_date')
+        reference_date = datetime.datetime.strptime(reference_date_str, '%Y-%m-%d').date()
+    
+        # Helper function to compute start dates
+        def start_date_for_period(days):
+            return reference_date - datetime.timedelta(days=days)
+
+        # Helper function to fill in missing dates with 0
+        def fill_missing_dates(data, start_date, end_date, date_trunc):
+            filled_data = {}
+            current_date = start_date
+            while current_date <= end_date:
+                key = current_date.strftime('%Y-%m-%d') if date_trunc == 'day' else current_date.strftime('%Y-%m')
+                filled_data[key] = 0
+                current_date += datetime.timedelta(days=1 if date_trunc == 'day' else 30)
+
+            for item in data:
+                key = item['period'].strftime('%Y-%m-%d') if date_trunc == 'day' else item['period'].strftime('%Y-%m')
+                filled_data[key] = item['average_intensity']
+
+            return [{'period': key, 'average_intensity': value} for key, value in filled_data.items()]
+
+        # Get the starting dates for each period
+        last_week_start = start_date_for_period(7)
+        last_month_start = start_date_for_period(30)
+        last_year_start = start_date_for_period(365)
+
+        # Aggregate average
+        def aggregate_flareup(queryset, date_trunc='day'):
+            if date_trunc == 'day':
+                trunc_date = functions.TruncDay('record_date')
+            elif date_trunc == 'month':
+                trunc_date = functions.TruncMonth('record_date')
+
+            return queryset.annotate(
+                period=trunc_date
+            ).values('period').annotate(
+                average_intensity=Avg('intense_level')
+            ).order_by('period')
+
+        # Queries
+        last_week_data = FlareupRecord.objects.filter(
+            record_date__range=[last_week_start, reference_date]
+        )
+        last_month_data = FlareupRecord.objects.filter(
+            record_date__range=[last_month_start, reference_date]
+        )
+        last_year_data = FlareupRecord.objects.filter(
+            record_date__range=[last_year_start, reference_date]
+        )
+
+        # Aggregate data and fill missing dates
+        weekly_avg_intensity = fill_missing_dates(aggregate_flareup(last_week_data, 'day'), last_week_start, reference_date, 'day')
+        monthly_avg_intensity = fill_missing_dates(aggregate_flareup(last_month_data, 'day'), last_month_start, reference_date, 'day')
+        yearly_avg_intensity = fill_missing_dates(aggregate_flareup(last_year_data, 'month'), last_year_start, reference_date, 'month')
+
+        summary = {
+            'last_week': weekly_avg_intensity,
+            'last_month': monthly_avg_intensity,
+            'last_year': yearly_avg_intensity
+        }
+
+        return JsonResponse({'status': 'success', 'summary': summary})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})

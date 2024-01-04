@@ -48,6 +48,8 @@ def getFoodRecordSummary(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         reference_date_str = data.get('reference_date')
+        openid = data.get('openid')
+
         reference_date = datetime.datetime.strptime(reference_date_str, '%Y-%m-%d').date()
             
         # Helper function to compute start dates
@@ -88,13 +90,20 @@ def getFoodRecordSummary(request):
             ).order_by('period')
 
         # Query for each time period
+        user = User.objects.filter(openid=openid).first()
+        if not user:
+            return JsonResponse({'status': 'error', 'message': 'User not found'})
+        
         last_week_data = FoodRecord.objects.filter(
+            user=user,
             record_date__range=[last_week_start, reference_date]
         )
         last_month_data = FoodRecord.objects.filter(
+            user=user,
             record_date__range=[last_month_start, reference_date]
         )
         last_year_data = FoodRecord.objects.filter(
+            user=user,
             record_date__range=[last_year_start, reference_date]
         )
 
@@ -184,6 +193,8 @@ def getUricacidSummary(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         reference_date_str = data.get('reference_date')
+        openid = data.get('openid')
+
         reference_date = datetime.datetime.strptime(reference_date_str, '%Y-%m-%d').date()
     
         # Helper function to compute start dates
@@ -224,13 +235,20 @@ def getUricacidSummary(request):
             ).order_by('period')
 
         # Queries
+        user = User.objects.filter(openid=openid).first()
+        if not user:
+            return JsonResponse({'status': 'error', 'message': 'User not found'})
+        
         last_week_data = UricacidRecord.objects.filter(
+            user=user,
             record_date__range=[last_week_start, reference_date]
         )
         last_month_data = UricacidRecord.objects.filter(
+            user=user,
             record_date__range=[last_month_start, reference_date]
         )
         last_year_data = UricacidRecord.objects.filter(
+            user=user,
             record_date__range=[last_year_start, reference_date]
         )
 
@@ -281,6 +299,8 @@ def getFlareupSummary(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         reference_date_str = data.get('reference_date')
+        openid = data.get('openid')
+
         reference_date = datetime.datetime.strptime(reference_date_str, '%Y-%m-%d').date()
     
         # Helper function to compute start dates
@@ -321,13 +341,20 @@ def getFlareupSummary(request):
             ).order_by('period')
 
         # Queries
+        user = User.objects.filter(openid=openid).first()
+        if not user:
+            return JsonResponse({'status': 'error', 'message': 'User not found'})
+        
         last_week_data = FlareupRecord.objects.filter(
+            user=user,
             record_date__range=[last_week_start, reference_date]
         )
         last_month_data = FlareupRecord.objects.filter(
+            user=user,
             record_date__range=[last_month_start, reference_date]
         )
         last_year_data = FlareupRecord.objects.filter(
+            user=user,
             record_date__range=[last_year_start, reference_date]
         )
 

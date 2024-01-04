@@ -1,11 +1,5 @@
-import os
-import io
-import base64
 import json
 import datetime
-from datetime import timedelta
-import tempfile
-import matplotlib.pyplot as plt
 
 from django.http import JsonResponse
 from django.utils.dateparse import parse_date
@@ -14,7 +8,6 @@ from django.db.models import Sum, Avg, F, functions
 from user.models import User
 from food.models import Food
 from .models import FoodRecord, UricacidRecord, FlareupRecord
-from django.conf import settings
 
 
 # ----------------------------------------- Food Record -----------------------------------------

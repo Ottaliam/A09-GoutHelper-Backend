@@ -19,16 +19,14 @@ def login(request):
             if response.status_code == 200:
                 data = response.json()
                 openid = data.get('openid', None)
-                session_key = data.get('session_key', None)
 
-                if openid and session_key:
+                if openid:
                     # 检查用户是否存在，不存在则创建
                     user, created = User.objects.get_or_create(openid=openid)
-                    user.session_key = session_key
 
                     return JsonResponse({'status': 'success', 'openid': openid})
                 else:
-                    return JsonResponse({'status': 'error', 'message': 'Fail to obtain openid and session_key'})
+                    return JsonResponse({'status': 'error', 'message': 'Fail to obtain openid'})
             else:
                 return JsonResponse({'status': 'error', 'message': 'Fail at WeChat API'})
         else:

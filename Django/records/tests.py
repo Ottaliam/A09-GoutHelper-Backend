@@ -10,7 +10,7 @@ class RecordTests(TestCase):
         self.client = Client()
 
         # Create test data
-        self.user = User.objects.create(openid="testuser", session_key="123456")
+        self.user = User.objects.create(openid="testuser")
         self.food = Food.objects.create(name="Test Food", ms_unit="g", purine_per_unit=10, health_tip="Test Tip")
         self.add_food_record_url = reverse('add_food_record')
         self.get_food_record_summary_url = reverse('food_record_summary')
@@ -34,7 +34,7 @@ class RecordTests(TestCase):
 
     def test_get_food_record_summary(self):
         # Test fetching food record summary
-        data = {'reference_date': '2023-01-01'}
+        data = {'openid': self.user.openid, 'reference_date': '2023-01-01'}
         response = self.client.post(self.get_food_record_summary_url, json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['status'], 'success')
@@ -61,7 +61,7 @@ class RecordTests(TestCase):
         self.assertTrue(UricacidRecord.objects.filter(id=record_id).exists())
 
     def test_get_uricacid_summary(self):
-        data = {'reference_date': '2023-01-01'}
+        data = {'openid': self.user.openid, 'reference_date': '2023-01-01'}
         response = self.client.post(self.get_uricacid_summary_url, json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 200)
         response_data = response.json()
@@ -87,7 +87,7 @@ class RecordTests(TestCase):
         self.assertTrue(FlareupRecord.objects.filter(id=record_id).exists())
 
     def test_get_flareup_summary(self):
-        data = {'reference_date': '2023-01-01'}
+        data = {'openid': self.user.openid, 'reference_date': '2023-01-01'}
         response = self.client.post(self.get_flareup_summary_url, json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 200)
         response_data = response.json()
